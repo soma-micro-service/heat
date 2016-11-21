@@ -20,147 +20,90 @@ from heat.engine import properties
 from heat.engine import resource
 from heat.engine import support
 
+import operator
+import pykube
+import backports.ssl_match_hostname
+
 
 class AppCluster(resource.Resource):
-    """A resource that creates a Magnum Bay.
-
-    This resource creates a Magnum bay, which is a
-    collection of node objects where work is scheduled.
+    """A resource that creates a App Cluster.
     """
 
     support_status = support.SupportStatus(version='0.0.1')
 
     PROPERTIES = (
-        NAME, BAYMODEL, NODE_COUNT, MASTER_COUNT, DISCOVERY_URL,
-        BAY_CREATE_TIMEOUT
+        NAME, GIT_REPOSITORY_URL, SERVICES
     ) = (
-        'name', 'baymodel', 'node_count', 'master_count',
-        'discovery_url', 'bay_create_timeout'
+        'name', 'git_repository_url', 'services'
+    )
+
+    _SERVICES = (
+        SERVICE_NAME,
+        LANG_PACK,
+        PORT
+    ) = (
+        'service_name', 'lang_pack', 'port',
     )
 
     properties_schema = {
         NAME: properties.Schema(
             properties.Schema.STRING,
-            _('The bay name.')
+            _('The app cluster name.')
         ),
-        BAYMODEL: properties.Schema(
+        GIT_REPOSITORY_URL: properties.Schema(
             properties.Schema.STRING,
-            _('The name or ID of the bay model.'),
-            constraints=[
-                constraints.CustomConstraint('magnum.baymodel')
-            ],
-            required=True
+            _('The url of git repository that source code refers for service.'),
+            required=True,
         ),
-        NODE_COUNT: properties.Schema(
-            properties.Schema.INTEGER,
-            _('The node count for this bay.'),
-            constraints=[constraints.Range(min=1)],
-            update_allowed=True,
-            default=1
-        ),
-        MASTER_COUNT: properties.Schema(
-            properties.Schema.INTEGER,
-            _('The number of master nodes for this bay.'),
-            constraints=[constraints.Range(min=1)],
-            update_allowed=True,
-            default=1
-        ),
-        DISCOVERY_URL: properties.Schema(
-            properties.Schema.STRING,
-            _('Specifies a custom discovery url for node discovery.')
-        ),
-        BAY_CREATE_TIMEOUT: properties.Schema(
-            properties.Schema.INTEGER,
-            _('Timeout for creating the bay in minutes. '
-              'Set to 0 for no timeout.'),
-            constraints=[constraints.Range(min=0)],
-            default=0
+        SERVICES: properties.Schema(
+            properties.Schema.LIST,
+            _('Services for app cluster.'),
+            required=True,
+            schema=properties.Schema(
+                properties.Schema.MAP,
+                schema={
+                    SERVICE_NAME: properties.Schema(
+                        properties.Schema.STRING,
+                        _('The service name.'),
+                        required=True
+                    ),
+                    LANG_PACK: properties.Schema(
+                        properties.Schema.STRING,
+                        _('The language package of service.'),
+                        required=True
+                    ),
+                    PORT: properties.Schema(
+                        properties.Schema.INTEGER,
+                        _('The port of service'),
+                        constraints=[
+                            constraints.Range(min=0),
+                        ],
+                        required=True,
+                    ),
+                },
+            )
         )
     }
 
-    default_client_name = 'astro'
+    def k8s_create(self, args):
+        None
 
-    entity = 'bays'
+    def k8s_delete(self, args):
+        None
 
     def handle_create(self):
         args = {
             'name': self.properties[self.NAME],
-            'baymodel_id': self.properties[self.BAYMODEL],
-            'node_count': self.properties[self.NODE_COUNT],
-            'master_count': self.properties[self.NODE_COUNT],
-            'discovery_url': self.properties[self.DISCOVERY_URL],
-            'bay_create_timeout': self.properties[self.BAY_CREATE_TIMEOUT]
+            'git_repository_url': self.properties[self.GIT_REPOSITORY_URL],
+            'services': self.properties[self.SERVICES]
         }
-        bay = self.client().bays.create(**args)
-        self.resource_id_set(bay.uuid)
-        return bay.uuid
 
-    def check_create_complete(self, id):
-        bay = self.client().bays.get(id)
-        if bay.status == 'CREATE_IN_PROGRESS':
-            return False
-        elif bay.status is None:
-            return False
-        elif bay.status == 'CREATE_COMPLETE':
-            return True
-        elif bay.status == 'CREATE_FAILED':
-            msg = (_("Failed to create Bay '%(name)s' - %(reason)s")
-                   % {'name': self.name, 'reason': bay.status_reason})
-            raise exception.ResourceInError(status_reason=msg,
-                                            resource_status=bay.status)
-        else:
-            msg = (_("Unknown status creating Bay '%(name)s' - %(reason)s")
-                   % {'name': self.name, 'reason': bay.status_reason})
-            raise exception.ResourceUnknownStatus(status_reason=msg,
-                                                  resource_status=bay.status)
+        self.k8s_create(args)
 
-    def handle_update(self, json_snippet, tmpl_diff, prop_diff):
-        if prop_diff:
-            patch = [{'op': 'replace', 'path': '/' + k, 'value': v}
-                     for k, v in six.iteritems(prop_diff)]
-            self.client().bays.update(self.resource_id, patch)
-            return self.resource_id
+        self.resource_id_set(self.physical_resource_name())
 
     def parse_live_resource_data(self, resource_properties, resource_data):
-        record_reality = {}
-
-        for key in [self.NODE_COUNT, self.MASTER_COUNT]:
-            record_reality.update({key: resource_data.get(key)})
-
-        return record_reality
-
-    def check_update_complete(self, id):
-        bay = self.client().bays.get(id)
-        if bay.status == 'UPDATE_IN_PROGRESS':
-            return False
-        # check for None due to Magnum bug
-        # https://bugs.launchpad.net/magnum/+bug/1507598
-        elif bay.status is None:
-            return False
-        elif bay.status == 'UPDATE_COMPLETE':
-            return True
-        elif bay.status == 'UPDATE_FAILED':
-            msg = (_("Failed to update Bay '%(name)s' - %(reason)s")
-                   % {'name': self.name, 'reason': bay.status_reason})
-            raise exception.ResourceInError(status_reason=msg,
-                                            resource_status=bay.status)
-
-        else:
-            msg = (_("Unknown status updating Bay '%(name)s' - %(reason)s")
-                   % {'name': self.name, 'reason': bay.status_reason})
-            raise exception.ResourceUnknownStatus(status_reason=msg,
-                                                  resource_status=bay.status)
-
-    def check_delete_complete(self, id):
-        if not id:
-            return True
-        try:
-            self.client().bays.get(id)
-        except Exception as exc:
-            self.client_plugin().ignore_not_found(exc)
-            return True
-        return False
-
+        return resource_data
 
 def resource_mapping():
     return {

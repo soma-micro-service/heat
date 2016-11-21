@@ -63,3 +63,7 @@ sqlalchemy-migrate>=0.9.6 # Apache-2.0
 stevedore>=1.17.1 # Apache-2.0
 WebOb>=1.6.0 # MIT
 yaql>=1.1.0 # Apache 2.0 License
+
+# for Astronaut
+pykube==0.13.0 # Apache-2.0
+backports.ssl_match_hostname==3.5.0.1 # PSFL

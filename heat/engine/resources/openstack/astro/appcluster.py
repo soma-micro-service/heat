@@ -11,9 +11,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import six
-
-from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import constraints
 from heat.engine import properties
@@ -97,13 +94,9 @@ class AppCluster(resource.Resource):
             'git_repository_url': self.properties[self.GIT_REPOSITORY_URL],
             'services': self.properties[self.SERVICES]
         }
-
         self.k8s_create(args)
-
         self.resource_id_set(self.physical_resource_name())
 
-    def parse_live_resource_data(self, resource_properties, resource_data):
-        return resource_data
 
 def resource_mapping():
     return {

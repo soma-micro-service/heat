@@ -26,3 +26,5 @@ heat_integrationtests/requirements.txt
 
 # Files created by releasenotes build
 releasenotes/build
+
+/.idea

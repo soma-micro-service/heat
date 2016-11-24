@@ -375,7 +375,7 @@ class PropertyUnspecifiedError(HeatException):
 # Do not reference this here - in the future it will move back to its
 # correct (and original) location in heat.engine.resource. Reference it as
 # heat.engine.resource.UpdateReplace instead.
-class UpdateReplace(Exception):
+class œUpdateReplace(Exception):
     """Raised when resource update requires replacement."""
     def __init__(self, resource_name='Unknown'):
         msg = _("The Resource %s requires replacement.") % resource_name

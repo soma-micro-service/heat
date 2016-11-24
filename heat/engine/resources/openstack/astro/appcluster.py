@@ -77,15 +77,13 @@ class AppCluster(resource.Resource):
 
     def k8s_parse_obj(self, name, service):
 
-        docker_registry_url = "192.168.0.66:5000"
-        lang_pack_map = {
-            "node": "node:0.0.1",
-        }
-        lang_pack = lang_pack_map.get(service.lang_pack)
-
-        service_name = service.service_name
-        docker_image_url = docker_registry_url + "/" + lang_pack
-        port_num = service.port
+        for (k, v) in service.items():
+            if k == "service_name":
+                service_name = v
+            elif k == "docker_image_url":
+                docker_image_url = v
+            elif k == "port":
+                port_num = v
 
         obj = {
             "apiVersion": "v1",
@@ -160,9 +158,6 @@ class AppCluster(resource.Resource):
             'physical_resource_name': physical_resource_name,
         }
         self.k8s_delete(args)
-
-    def handle_update(self, json_snippet, tmpl_diff, prop_diff):
-        None
 
 
 def resource_mapping():

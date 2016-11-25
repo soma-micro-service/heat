@@ -138,6 +138,15 @@ class AppCluster(resource.Resource):
             obj = self.k8s_parse_obj(name, service)
             pykube.ReplicationController(api, obj).delete()
 
+    def k8s_update(self, args):
+        api = pykube.HTTPClient(pykube.KubeConfig.from_file("/home/micros/.kube/config"))
+
+        name = args.name
+
+        for service in args.services:
+            obj = self.k8s_parse_obj(name, service)
+            pykube.ReplicationController(api, obj).update()
+
     def handle_create(self):
         physical_resource_name = self.physical_resource_name()
 
@@ -158,6 +167,16 @@ class AppCluster(resource.Resource):
             'physical_resource_name': physical_resource_name,
         }
         self.k8s_delete(args)
+
+    def handle_update(self, json_snippet, tmpl_diff, prop_diff):
+        physical_resource_name = self.physical_resource_name()
+
+        args = {
+            'name': self.properties[self.NAME],
+            'services': self.properties[self.SERVICES],
+            'physical_resource_name': physical_resource_name,
+        }
+        self.k8s_update(args)
 
 
 def resource_mapping():
